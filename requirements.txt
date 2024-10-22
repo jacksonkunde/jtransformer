@@ -1,0 +1,5 @@
+einops==0.8.0
+jaxtyping==0.2.34
+torch==2.5.0
+numpy==2.1.2
+pytest==8.2.2
