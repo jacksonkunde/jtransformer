@@ -1,3 +1,4 @@
+# TODO: Inherit from PreTrainedTokenizer
 class CharTokenizer:
     def __init__(self, vocab=None, pad_token_id=0):
         # Initialize the vocabulary with the pad token
