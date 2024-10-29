@@ -36,10 +36,10 @@ class Embed(nn.Module):
         nn.init.normal_(self.embed, std=self.cfg.init_range)
 
     def forward(
-        self, tokens: Int[th.Tensor, "batch position"]
+        self, input_ids: Int[th.Tensor, "batch position"]
     ) -> Float[th.Tensor, "batch position d_model"]:
         # Index the embeddings
-        return self.embed[tokens]
+        return self.embed[input_ids]
 
 
 class GPT2PositionalEmbed(nn.Module):
@@ -51,9 +51,9 @@ class GPT2PositionalEmbed(nn.Module):
         nn.init.normal_(self.pos_embed, std=self.cfg.init_range)
 
     def forward(
-        self, tokens: Int[th.Tensor, "batch position"]
+        self, input_ids: Int[th.Tensor, "batch position"]
     ) -> Float[th.Tensor, "batch position d_model"]:
-        batch, seq_len = tokens.shape
+        batch, seq_len = input_ids.shape
         return ein.repeat(
             self.pos_embed[:seq_len],
             "position d_model -> batch position d_model",
@@ -134,9 +134,8 @@ class Attention(nn.Module):
         attn_scores = attn_scores.softmax(-1)
 
         # Multiply with values
-        print(attn_scores.shape, v.shape)
         inter = th.einsum(
-            "b h q k, b h k d -> b h q d",  # Use single-character subscripts
+            "b h q k, b h k d -> b h q d",
             attn_scores,  # Shape: (batch, n_heads, pos_q, pos_k)
             v,  # Shape: (batch, n_heads, pos_k, d_head)
         )
@@ -153,8 +152,8 @@ class MLP(nn.Module):
     def __init__(self, cfg: TransformerConfig):
         super().__init__()
         self.cfg = cfg
-        self.linear_in = nn.Linear(cfg.d_model, 4 * cfg.d_model)
-        self.linear_out = nn.Linear(cfg.d_model * 4, cfg.d_model)
+        self.linear_in = nn.Linear(cfg.d_model, cfg.d_mlp)
+        self.linear_out = nn.Linear(cfg.d_mlp, cfg.d_model)
         self.gelu = nn.GELU()
 
     def forward(
@@ -204,8 +203,8 @@ class Transformer(nn.Module):
         self.ln_last = LayerNorm(cfg)
         self.unembed = Unembed(cfg)
 
-    def forward(self, tokens):
-        res = self.embed(tokens) + self.pos_embed(tokens)
+    def forward(self, input_ids):
+        res = self.embed(input_ids) + self.pos_embed(input_ids)
         for block in self.transformer_blocks:
             res = block(res)
         logits = self.unembed(self.ln_last(res))

@@ -3,3 +3,6 @@ jaxtyping==0.2.34
 torch==2.5.0
 numpy==2.1.2
 pytest==8.2.2
+wandb==0.18.5
+transformers==4.45.2
+datasets==3.0.2
