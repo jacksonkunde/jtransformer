@@ -22,6 +22,7 @@ class TrainingConfig:
     batch_size: int = 16
     n_epochs: int = 20
     save_freq: int = 10
+    save_path: str = "transformer_train"
     max_steps_per_epoch: int = 200
     lr: float = 1e-3
     weight_decay: float = 1e-2

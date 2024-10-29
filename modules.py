@@ -203,9 +203,47 @@ class Transformer(nn.Module):
         self.ln_last = LayerNorm(cfg)
         self.unembed = Unembed(cfg)
 
-    def forward(self, input_ids):
+    def forward(self, input_ids) -> th.Tensor:
         res = self.embed(input_ids) + self.pos_embed(input_ids)
         for block in self.transformer_blocks:
             res = block(res)
         logits = self.unembed(self.ln_last(res))
         return logits
+
+    def generate(
+        self,
+        input_ids,
+        eos_token_id=int,
+        max_length: int = 100,
+        max_new_tokens: int | None = None,
+        temperature: float = 1.0,
+        sample: bool = False,
+        top_p: float = 1.0,
+        top_k: int | None = None,
+    ):
+        n_input_tokens = input_ids.size(-1)
+        if max_new_tokens is None:
+            max_new_tokens = max_length - n_input_tokens
+
+        batch_size = input_ids.size(0)
+        is_finished = th.zeros(batch_size, dtype=th.bool, device=input_ids.device)
+
+        for i in range(max_new_tokens):
+            logits = self.forward(input_ids=input_ids)
+            new_tokens = logits[:, -1, :].argmax(-1)
+            input_ids = th.cat((input_ids, new_tokens), dim=-1)
+
+            # Update the input_ids only for unfinished sequences
+            new_tokens = new_tokens.masked_fill(
+                is_finished, eos_token_id
+            )  # Prevent further updates
+            input_ids = th.cat((input_ids, new_tokens.unsqueeze(-1)), dim=-1)
+
+            # Check if any new EOS tokens were generated and update the mask
+            is_finished = is_finished | (new_tokens == eos_token_id)
+
+            # Break if all sequences are finished
+            if is_finished.all():
+                break
+
+        return input_ids

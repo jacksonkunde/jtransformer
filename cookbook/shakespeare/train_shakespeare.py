@@ -13,7 +13,11 @@ def main():
 
     tokenizer_kwargs = {"max_length": 64, "padding": True, "truncation": True}
     dataset = create_dataset(
-        tokenizer=tokenizer, file_path=file_path, tokenizer_kwargs=tokenizer_kwargs
+        tokenizer=tokenizer,
+        file_path=file_path,
+        tokenizer_kwargs=tokenizer_kwargs,
+        chunk_size=64,
+        overlap_size=16,
     )
 
     train_dataset = dataset[: int(len(dataset) * 0.9)]
@@ -27,7 +31,7 @@ def main():
     training_cfg = TrainingConfig(
         debug=False,
         batch_size=32,
-        n_epochs=5,
+        n_epochs=1,
         train_data_path=os.path.abspath("./train_dataset"),
         val_data_path=os.path.abspath("./val_dataset"),
     )
