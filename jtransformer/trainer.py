@@ -123,7 +123,7 @@ class Jtrainer:
                 train_dataset,
                 batch_size=self.cfg.batch_size,
                 shuffle=True,
-                num_workers=1,
+                num_workers=self.cfg.n_workers,
                 pin_memory=True,
             )
 
@@ -135,7 +135,7 @@ class Jtrainer:
                 val_dataset,
                 batch_size=self.cfg.batch_size,
                 shuffle=False,
-                num_workers=1,
+                num_workers=self.cfg.n_workers,
                 pin_memory=True,
             )
 

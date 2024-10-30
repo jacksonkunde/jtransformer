@@ -32,3 +32,4 @@ class TrainingConfig:
     wandb_display_name: str | None = None
     train_data_path: str = ""
     val_data_path: str = ""
+    n_workers: int = 1
