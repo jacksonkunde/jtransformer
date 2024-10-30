@@ -22,6 +22,7 @@ setup(
         "wandb==0.18.5",
         "transformers==4.45.2",
         "datasets==3.0.2",
+        "tqdm==4.66.5",
     ],
     python_requires=">=3.8",
     classifiers=[

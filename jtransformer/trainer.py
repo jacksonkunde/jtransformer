@@ -12,13 +12,7 @@ from torch import nn
 import wandb
 from tqdm import tqdm
 
-# Data format
-# gradient accum
-# mixed precison training
-
-from typing import Dict
 from datasets import Dataset, load_dataset, load_from_disk
-from transformers import PreTrainedTokenizer
 
 
 class Jtrainer:
