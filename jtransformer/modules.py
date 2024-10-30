@@ -94,10 +94,10 @@ class Attention(nn.Module):
     ) -> Float[th.Tensor, "batch n_heads query_pos key_pos"]:
         batch, n_heads, query_pos, key_pos = attn_scores.shape
         o = th.ones((query_pos, key_pos))  # Create matrix in attn matrix shape
-        mask = th.triu(
-            input=o, diagonal=1
-        ).bool()  # Upper triangular matrix 1 off diagonal
-        attn_scores.masked_fill(mask=mask, value=self.MASK).to(attn_scores.device)
+        mask = (
+            th.triu(input=o, diagonal=1).bool().to(attn_scores.device)
+        )  # Upper triangular matrix 1 off diagonal
+        attn_scores.masked_fill(mask=mask, value=self.MASK.to(attn_scores.device))
         return attn_scores
 
     def forward(self, res: Float[th.Tensor, "batch position d_model"]):
