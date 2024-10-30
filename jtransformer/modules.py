@@ -80,7 +80,6 @@ class Attention(nn.Module):
         super().__init__()
         self.cfg = cfg
         # Masking
-        self.MASK: th.tensor
         self.register_buffer("MASK", th.tensor(float("-inf"), dtype=th.float32))
 
         # Attn weights
