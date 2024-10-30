@@ -49,7 +49,6 @@ class Jtrainer(ABC):
 
     def train_step(self, batch: Dict[str, th.Tensor]) -> float:
         """Shared logic for a single training step."""
-        self.model.to(self.device)
         self.model.train()
         input_ids = batch["input_ids"].to(self.device)
         labels = batch["label"].to(self.device)
@@ -77,7 +76,7 @@ class Jtrainer(ABC):
 
     def train(self) -> None:
         """Main training loop, shared across trainers."""
-        self.model.train()
+        self.model.to(self.device)
         # Now load the dataloaders for training and validation
         self._load_data()
         assert (
