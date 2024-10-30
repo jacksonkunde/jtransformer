@@ -224,7 +224,7 @@ class Jtrainer(ABC):
         """Load train and validation datasets."""
         if self.train_dataloader is None:
             train_dataset = load_from_disk(self.cfg.train_data_path)
-            train_dataset.set_format(type="torch", columns=["input_ids"])
+            train_dataset.set_format(type="torch")
             self.train_dataloader = DataLoader(
                 train_dataset,
                 batch_size=self.cfg.batch_size,
@@ -233,7 +233,7 @@ class Jtrainer(ABC):
             )
         if self.val_dataloader is None:
             val_dataset = load_from_disk(self.cfg.val_data_path)
-            val_dataset.set_format(type="torch", columns=["input_ids"])
+            val_dataset.set_format(type="torch")
             self.val_dataloader = DataLoader(
                 val_dataset,
                 batch_size=self.cfg.batch_size,
