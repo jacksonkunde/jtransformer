@@ -49,9 +49,7 @@ class Jtrainer(ABC):
         pass
 
     @abstractmethod
-    def val_metrics(
-        self, predictions: th.Tensor, targets: th.Tensor
-    ) -> dict[str, float]:
+    def val_metrics(self, logits: th.Tensor, targets: th.Tensor) -> dict[str, float]:
         """Subclasses implement their own validation metric."""
         pass
 
@@ -118,9 +116,9 @@ class Jtrainer(ABC):
         labels = batch["label"].to(self.device)
 
         with th.no_grad():
-            predictions = self.model(input_ids).squeeze(-1)
+            logits = self.model(input_ids)
             return dict(
-                **self.val_metrics(predictions, labels),
+                **self.val_metrics(logits, labels),
                 n_datapoints=labels.size(0),
             )
 
@@ -344,19 +342,19 @@ class NextTokenPredictionTrainer(Jtrainer):
     def _setup_optimizer(self) -> optim.Optimizer:
         return optim.AdamW(self.model.parameters(), lr=self.cfg.lr)
 
-    def val_metrics(
-        self, predictions: th.Tensor, labels: th.Tensor
-    ) -> Dict[str, float]:
+    def val_metrics(self, logits: th.Tensor, labels: th.Tensor) -> Dict[str, float]:
         """Computes multiple metrics for a given batch."""
         assert self.criterion is not None
-        loss = self.criterion(predictions, labels).item()
-        accuracy = (predictions.argmax(dim=-1) == labels).float().mean().item()
+        predictions = logits.argmax(dim=-1, keepdim=True)
+        loss = self.criterion(logits.view(-1, logits.size(-1)), labels.view(-1)).item()
+        accuracy = (predictions == labels).float().mean().item()
 
         return {"val_loss": loss, "val_accuracy": accuracy}
 
     def train_step(self, batch: Dict[str, th.Tensor]) -> float:
         """Override to handle input-label shifting."""
         assert self.criterion is not None
+        assert self.optimizer is not None
         self.model.train()
         input_ids = batch["input_ids"].to(self.device)
 
@@ -364,12 +362,8 @@ class NextTokenPredictionTrainer(Jtrainer):
         labels = input_ids[:, 1:].clone()
         input_ids = input_ids[:, :-1]
 
-        print(labels.shape, input_ids.shape)
-
         # Forward pass and loss calculation
         logits = self.model(input_ids)  # [batch_size, seq_len-1, vocab_size]
-        print(logits.shape)
-
         loss = self.criterion(logits.view(-1, logits.size(-1)), labels.view(-1))
 
         loss.backward()
@@ -390,10 +384,10 @@ class NextTokenPredictionTrainer(Jtrainer):
         input_ids = input_ids[:, :-1]
 
         with th.no_grad():
-            predictions = self.model(input_ids)  # [batch_size, seq_len-1, vocab_size]
+            logits = self.model(input_ids)  # [batch_size, seq_len-1, vocab_size]
 
             # Compute metrics for this batch
-            metrics = self.val_metrics(predictions, labels)
+            metrics = self.val_metrics(logits, labels)
 
             # Add the number of datapoints in the batch
             return {**metrics, "n_datapoints": labels.size(0)}
