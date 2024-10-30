@@ -231,6 +231,6 @@ class Jtrainer:
         else:
             raise Exception
 
-        tokenized_dataset.set_format(type="torch", columns=["input_ids"])
+        # tokenized_dataset.set_format(type="torch", columns=["input_ids"])
 
         return tokenized_dataset
