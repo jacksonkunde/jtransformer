@@ -364,6 +364,8 @@ class NextTokenPredictionTrainer(Jtrainer):
         labels = input_ids[:, 1:].clone()
         input_ids = input_ids[:, :-1]
 
+        print(labels.shape, input_ids.shape)
+
         # Forward pass and loss calculation
         logits = self.model(input_ids)  # [batch_size, seq_len-1, vocab_size]
         loss = self.criterion(logits.view(-1, logits.size(-1)), labels.view(-1))
