@@ -269,3 +269,15 @@ class NextTokenPredictionTrainer(Jtrainer):
         self.n_steps += 1
         wandb.log({"train_loss": loss.item()}, step=self.n_steps)
         return loss.item()
+
+    def val_step(self, batch: Dict[str, th.Tensor]) -> float:
+        """Shared logic for a single validation step."""
+        self.model.eval()
+        input_ids = batch["input_ids"].to(self.device)
+        # Shift inputs to create labels for next-token prediction
+        labels = input_ids[:, 1:].clone()
+        input_ids = input_ids[:, :-1]
+
+        with th.no_grad():
+            predictions = self.model(input_ids).squeeze(-1)
+            return self.val_metric(predictions, labels)
