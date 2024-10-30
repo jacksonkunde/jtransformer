@@ -1,5 +1,5 @@
 from jtransformer.config import TrainingConfig
-from char_tokenizer import CharTokenizer
+from jtransformer.char_tokenizer import CharTokenizer
 
 import os
 from typing import Dict, Optional, Union
