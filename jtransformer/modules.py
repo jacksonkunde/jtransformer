@@ -97,7 +97,7 @@ class Attention(nn.Module):
         mask = th.triu(
             input=o, diagonal=1
         ).bool()  # Upper triangular matrix 1 off diagonal
-        attn_scores.masked_fill(mask=mask, value=self.MASK)
+        attn_scores.masked_fill(mask=mask, value=self.MASK.to(attn_scores.device))
         return attn_scores
 
     def forward(self, res: Float[th.Tensor, "batch position d_model"]):
