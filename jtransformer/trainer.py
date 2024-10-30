@@ -368,6 +368,8 @@ class NextTokenPredictionTrainer(Jtrainer):
 
         # Forward pass and loss calculation
         logits = self.model(input_ids)  # [batch_size, seq_len-1, vocab_size]
+        print(logits.shape)
+
         loss = self.criterion(logits.view(-1, logits.size(-1)), labels.view(-1))
 
         loss.backward()
