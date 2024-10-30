@@ -17,13 +17,15 @@
 
 ## Installation
 
-### 1. Clone the Repository
+### Install the jtransformer Package Via `pip`
+```bash
+pip install git+https://github.com/jacksonkunde/jtransformer.git
+```
+
+### Or Clone the Repository and Install Dependencies
 ```bash
 git clone https://github.com/jacksonkunde/jtransformer.git
 cd jtransformer
-```
-### 2. Install Dependencies
-``` bash
 pip install -r requirements.txt
 ```
 ---
