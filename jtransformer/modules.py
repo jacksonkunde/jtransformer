@@ -5,8 +5,9 @@ import os
 import json
 from typing import List
 
-import torch.nn as nn
 import torch as th
+import torch.nn as nn
+from torch.nn.functional import softmax
 from jaxtyping import Float, Int
 import einops as ein
 
@@ -22,8 +23,8 @@ class LayerNorm(nn.Module):
         self, res: Float[th.Tensor, "batch position d_model"]
     ) -> Float[th.Tensor, "batch position d_model"]:
         mean = res.mean(dim=-1, keepdim=True)
-        var = res.var(dim=-1, keepdim=True).sqrt()
-        res = res - mean / th.sqrt(var + self.cfg.layer_norm_eps)
+        var = res.var(dim=-1, keepdim=True, unbiased=False).sqrt()
+        res = (res - mean) / (var + self.cfg.layer_norm_eps)
 
         return self.w * res + self.b
 
@@ -88,6 +89,9 @@ class Attention(nn.Module):
         nn.init.normal_(self.W_attn.weight, std=cfg.init_range)
 
         self.W_O = nn.Linear(cfg.d_model, cfg.d_model, bias=True)
+        nn.init.normal_(self.W_O.weight, std=cfg.init_range)
+
+        self.d_head = self.cfg.d_model // self.cfg.n_heads
 
     def causal_mask(
         self, attn_scores: Float[th.Tensor, "batch n_heads query_pos key_pos"]
@@ -97,7 +101,9 @@ class Attention(nn.Module):
         mask = (
             th.triu(input=o, diagonal=1).bool().to(attn_scores.device)
         )  # Upper triangular matrix 1 off diagonal
-        attn_scores.masked_fill(mask=mask, value=self.MASK.to(attn_scores.device))
+        attn_scores = attn_scores.masked_fill(
+            mask, value=self.MASK.to(attn_scores.device)
+        )
         return attn_scores
 
     def forward(self, res: Float[th.Tensor, "batch position d_model"]):
@@ -129,10 +135,10 @@ class Attention(nn.Module):
                 q,  # shape: (batch, n_heads, pos_q, d_head)
                 k,  # shape: (batch, n_heads, pos_k, d_head)
             )
-            / (d_model // self.cfg.n_heads) ** 0.5
+            / (self.d_head) ** 0.5
         )
         attn_scores = self.causal_mask(attn_scores)
-        attn_scores = attn_scores.softmax(-1)
+        attn_scores = attn_scores.softmax(dim=-1)
 
         # Multiply with values
         inter = th.einsum(
@@ -163,7 +169,6 @@ class MLP(nn.Module):
         res = self.linear_in(res)
         res = self.gelu(res)
         res = self.linear_out(res)
-        res = self.gelu(res)
         return res
 
 
@@ -218,8 +223,8 @@ class Jtransformer(nn.Module):
         max_length: int = 100,
         max_new_tokens: int | None = None,
         temperature: float = 1.0,
-        sample: bool = False,
-        top_p: float = 1.0,
+        do_sample: bool = False,
+        top_p: float | None = None,
         top_k: int | None = None,
     ):
         if isinstance(input_ids, List):
@@ -237,17 +242,39 @@ class Jtransformer(nn.Module):
 
         for i in range(max_new_tokens):
             logits = self.forward(input_ids=input_ids)
-            new_tokens = logits[:, -1, :].argmax(-1, keepdim=True)
+
+            # Apply temp
+            logits = logits[:, -1, :] / temperature
+
+            # Mask logits for finished sequences
+            logits = logits.masked_fill(is_finished.unsqueeze(-1), float("-inf"))
+
+            # apply top-k filtering if set
+            if top_k is not None:
+                top_k_values, _ = th.topk(logits, top_k, dim=-1)
+                min_top_k = top_k_values[:, -1].unsqueeze(-1)
+                logits = th.where(
+                    logits < min_top_k, th.full_like(logits, float("-inf")), logits
+                )
+
+            # Sample or use argmax based on the `sample` flag
+            if do_sample:
+                probabilities = softmax(logits, dim=-1)
+                print(probabilities)
+                new_tokens = th.multinomial(probabilities, num_samples=1)
+            else:
+                new_tokens = logits.argmax(dim=-1, keepdim=True)
+
+            print(logits)
             print(new_tokens)
             print(input_ids)
+
             input_ids = th.cat((input_ids, new_tokens), dim=-1)
 
             # Update the input_ids only for unfinished sequences
-            new_tokens = new_tokens.masked_fill(
-                is_finished, eos_token_id
-            )  # Prevent further updates
+            new_tokens = new_tokens.masked_fill(is_finished, eos_token_id)
 
-            # Check if any new EOS tokens were generated and update the mask
+            # Check if any new EOS tokens were generated and update the mask using bitwise OR
             is_finished = is_finished | (new_tokens == eos_token_id)
 
             # Break if all sequences are finished

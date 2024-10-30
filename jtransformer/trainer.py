@@ -27,7 +27,7 @@ class Jtrainer:
         self.debug = cfg.debug
         self.model = model.to(self.device)
         self.tokenizer = tokenizer
-        self.criterion = nn.CrossEntropyLoss()
+        self.criterion = nn.CrossEntropyLoss(ignore_index=self.tokenizer.pad_token_id)
         self.optimizer = th.optim.AdamW(
             self.model.parameters(), lr=cfg.lr, weight_decay=cfg.weight_decay
         )
