@@ -348,6 +348,7 @@ class NextTokenPredictionTrainer(Jtrainer):
         self, predictions: th.Tensor, labels: th.Tensor
     ) -> Dict[str, float]:
         """Computes multiple metrics for a given batch."""
+        assert self.criterion is not None
         loss = self.criterion(predictions, labels).item()
         accuracy = (predictions.argmax(dim=-1) == labels).float().mean().item()
 
@@ -355,6 +356,7 @@ class NextTokenPredictionTrainer(Jtrainer):
 
     def train_step(self, batch: Dict[str, th.Tensor]) -> float:
         """Override to handle input-label shifting."""
+        assert self.criterion is not None
         self.model.train()
         input_ids = batch["input_ids"].to(self.device)
 
