@@ -21,12 +21,11 @@ class Jtrainer(ABC):
         cfg: TrainingConfig,
         model: nn.Module,
         tokenizer: Union[PreTrainedTokenizer, CharTokenizer],
-        device: str = "cpu",
     ) -> None:
         self.model = model.to(device)
         self.tokenizer = tokenizer
         self.cfg = cfg
-        self.device = device
+        self.device = cfg.device
         self.optimizer: Optional[optim.Optimizer] = self._setup_optimizer()
         self.criterion: Optional[nn.Module] = self._setup_loss()
         self.train_dataloader: Optional[DataLoader] = None
@@ -50,6 +49,7 @@ class Jtrainer(ABC):
 
     def train_step(self, batch: Dict[str, th.Tensor]) -> float:
         """Shared logic for a single training step."""
+        self.model.to(self.device)
         self.model.train()
         input_ids = batch["input_ids"].to(self.device)
         labels = batch["label"].to(self.device)
