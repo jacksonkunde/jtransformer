@@ -141,6 +141,7 @@ class Jtrainer:
 
     @classmethod
     def create_dataset(
+        cls,
         tokenizer: PreTrainedTokenizer,
         file_path: str | None = None,
         hf_dataset_name: str | None = None,
