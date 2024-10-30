@@ -65,6 +65,7 @@ jtransformer/
 - [ ] Increase compatibility with HuggingFace libraries
 - [ ] Enforce stricter type checking
 - [ ] Extend the character tokenizer to inherit from HuggingFace's `PreTrainedTokenizer`
+- [ ] Add sampling methods (top_p, top_k, etc.)
 
 ---
 
