@@ -1,5 +1,6 @@
 # config.py
 from dataclasses import dataclass, asdict
+from typing import Literal, Optional, Dict
 
 import torch as th
 
@@ -28,6 +29,8 @@ class TrainingConfig:
     save_path: str = "models"
     max_steps_per_epoch: int = 200
     lr: float = 1e-3
+    scheduler_type: Optional[Literal["steplr", "cosine", "reduce_on_plateau"]] = None
+    scheduler_kwargs: Optional[Dict] = None
     weight_decay: float = 1e-2
     device = "cuda" if th.cuda.is_available() else "cpu"
     debug: bool = False
@@ -36,6 +39,7 @@ class TrainingConfig:
     train_data_path: str = ""
     val_data_path: str = ""
     n_workers: int = 1
+    early_stopping_patience: int = 5
 
     def to_dict(self) -> dict:
         return asdict(self)

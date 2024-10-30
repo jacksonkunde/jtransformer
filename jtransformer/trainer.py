@@ -2,13 +2,14 @@ from jtransformer.config import TrainingConfig
 from jtransformer.char_tokenizer import CharTokenizer
 
 import os
-from typing import Dict, Optional, Union
+from typing import Dict, Optional, Union, cast
 from abc import ABC, abstractmethod  # For extensible trainers
 
 from transformers import PreTrainedTokenizer
 import torch as th
 from torch.utils.data import DataLoader
 from torch import nn, optim
+from torch.optim.lr_scheduler import _LRScheduler
 import wandb
 from tqdm import tqdm
 
@@ -27,10 +28,15 @@ class Jtrainer(ABC):
         self.cfg = cfg
         self.device = cfg.device
         self.optimizer: Optional[optim.Optimizer] = self._setup_optimizer()
+        self.scheduler: Optional[optim.lr_scheduler._LRScheduler] = (
+            self._setup_scheduler()
+        )
         self.criterion: Optional[nn.Module] = self._setup_loss()
         self.train_dataloader: Optional[DataLoader] = None
         self.val_dataloader: Optional[DataLoader] = None
         self.n_steps = 0
+        self.best_val_loss = float("inf")
+        self.early_stopping_counter = 0
 
     @abstractmethod
     def _setup_loss(self) -> nn.Module:
@@ -43,9 +49,47 @@ class Jtrainer(ABC):
         pass
 
     @abstractmethod
-    def val_metric(self, predictions: th.Tensor, targets: th.Tensor) -> float:
+    def val_metrics(
+        self, predictions: th.Tensor, targets: th.Tensor
+    ) -> dict[str, float]:
         """Subclasses implement their own validation metric."""
         pass
+
+    def _setup_scheduler(self) -> Optional[_LRScheduler]:
+        """Set up the learning rate scheduler based on the config."""
+        assert (
+            self.optimizer is not None
+        ), "Optimizer must be initialized before scheduler."
+        scheduler_kwargs = self.cfg.scheduler_kwargs or {}
+
+        if self.cfg.scheduler_type == "steplr":
+            return cast(
+                _LRScheduler,
+                optim.lr_scheduler.StepLR(
+                    self.optimizer,
+                    step_size=scheduler_kwargs.get("step_size", 10),
+                    gamma=scheduler_kwargs.get("gamma", 0.1),
+                ),
+            )
+        elif self.cfg.scheduler_type == "cosine":
+            return cast(
+                _LRScheduler,
+                optim.lr_scheduler.CosineAnnealingLR(
+                    self.optimizer,
+                    T_max=scheduler_kwargs.get("T_max", self.cfg.n_epochs),
+                ),
+            )
+        elif self.cfg.scheduler_type == "reduce_on_plateau":
+            return cast(
+                _LRScheduler,
+                optim.lr_scheduler.ReduceLROnPlateau(
+                    self.optimizer,
+                    mode=scheduler_kwargs.get("mode", "min"),
+                    patience=scheduler_kwargs.get("patience", 3),
+                    factor=scheduler_kwargs.get("factor", 0.5),
+                ),
+            )
+        return None
 
     def train_step(self, batch: Dict[str, th.Tensor]) -> float:
         """Shared logic for a single training step."""
@@ -64,15 +108,42 @@ class Jtrainer(ABC):
         wandb.log({"train_loss": loss.item()}, step=self.n_steps)
         return loss.item()
 
-    def val_step(self, batch: Dict[str, th.Tensor]) -> float:
+    def val_step(self, batch: Dict[str, th.Tensor]) -> dict:
         """Shared logic for a single validation step."""
+        assert (
+            self.criterion is not None
+        ), "Criterion must be initalized before validation steps."
         self.model.eval()
         input_ids = batch["input_ids"].to(self.device)
         labels = batch["label"].to(self.device)
 
         with th.no_grad():
             predictions = self.model(input_ids).squeeze(-1)
-            return self.val_metric(predictions, labels)
+            return dict(
+                **self.val_metrics(predictions, labels),
+                n_datapoints=labels.size(0),
+            )
+
+    def aggregate_metrics(
+        self, val_metrics_list: list[Dict[str, float]]
+    ) -> Dict[str, float]:
+        """Aggregate metrics across the entire validation set using weighted averages."""
+        aggregated = {}
+        total_datapoints = sum(metrics["n_datapoints"] for metrics in val_metrics_list)
+
+        # Sum up each metric weighted by the number of datapoints in each batch
+        for key in val_metrics_list[0].keys():
+            if key == "n_datapoints":
+                continue  # Skip this field in the aggregation
+
+            weighted_sum = sum(
+                metrics[key] * metrics["n_datapoints"] for metrics in val_metrics_list
+            )
+            aggregated[key] = (
+                weighted_sum / total_datapoints
+            )  # Compute weighted average
+
+        return aggregated
 
     def train(self) -> None:
         """Main training loop, shared across trainers."""
@@ -104,12 +175,40 @@ class Jtrainer(ABC):
             if epoch % self.cfg.save_freq == 0:
                 self.save_model(f"epoch_{epoch+1}")
 
-            val_loss = sum(self.val_step(b) for b in self.val_dataloader) / len(
-                self.val_dataloader
-            )
-            wandb.log({"val_loss": val_loss}, step=self.n_steps)
+            val_metrics_list = [self.val_step(b) for b in self.val_dataloader]
+
+            # Aggregate metrics using a weighted average
+            aggregated_metrics = self.aggregate_metrics(val_metrics_list)
+
+            # Log the aggregated metrics to Wandb
+            wandb.log(aggregated_metrics, step=self.n_steps)
+
+            # Optionally update the progress bar with validation metrics
+            progress_bar.set_postfix(aggregated_metrics)
+
+            # Early stopping logic based on val_loss (if available)
+            val_loss = aggregated_metrics.get("val_loss")
+            if val_loss is not None and self._early_stopping(val_loss):
+                print("Early stopping triggered.")
+                break
+
+            # Update the scheduler with the validation loss (if required)
+            if isinstance(self.scheduler, optim.lr_scheduler.ReduceLROnPlateau):
+                self.scheduler.step(val_loss)  # Pass val_loss to ReduceLROnPlateau
+            elif self.scheduler is not None:
+                self.scheduler.step()  # Step other schedulers normally
 
         self.save_model("final")
+
+    def _early_stopping(self, val_loss: float) -> bool:
+        """Checks if early stopping should be triggered."""
+        if val_loss < self.best_val_loss:
+            self.best_val_loss = val_loss
+            self.early_stopping_counter = 0
+        else:
+            self.early_stopping_counter += 1
+
+        return self.early_stopping_counter >= self.cfg.early_stopping_patience
 
     def save_model(self, save_name: str) -> None:
         """Save the model with error handling."""
@@ -245,9 +344,14 @@ class NextTokenPredictionTrainer(Jtrainer):
     def _setup_optimizer(self) -> optim.Optimizer:
         return optim.AdamW(self.model.parameters(), lr=self.cfg.lr)
 
-    def val_metric(self, predictions: th.Tensor, targets: th.Tensor) -> float:
-        correct = (predictions.argmax(dim=-1) == targets).float().mean().item()
-        return correct
+    def val_metrics(
+        self, predictions: th.Tensor, labels: th.Tensor
+    ) -> Dict[str, float]:
+        """Computes multiple metrics for a given batch."""
+        loss = self.criterion(predictions, labels).item()
+        accuracy = (predictions.argmax(dim=-1) == labels).float().mean().item()
+
+        return {"val_loss": loss, "val_accuracy": accuracy}
 
     def train_step(self, batch: Dict[str, th.Tensor]) -> float:
         """Override to handle input-label shifting."""
@@ -270,14 +374,20 @@ class NextTokenPredictionTrainer(Jtrainer):
         wandb.log({"train_loss": loss.item()}, step=self.n_steps)
         return loss.item()
 
-    def val_step(self, batch: Dict[str, th.Tensor]) -> float:
+    def val_step(self, batch: Dict[str, th.Tensor]) -> dict:
         """Shared logic for a single validation step."""
         self.model.eval()
         input_ids = batch["input_ids"].to(self.device)
+
         # Shift inputs to create labels for next-token prediction
         labels = input_ids[:, 1:].clone()
         input_ids = input_ids[:, :-1]
 
         with th.no_grad():
-            predictions = self.model(input_ids).squeeze(-1)
-            return self.val_metric(predictions, labels)
+            predictions = self.model(input_ids)  # [batch_size, seq_len-1, vocab_size]
+
+            # Compute metrics for this batch
+            metrics = self.val_metrics(predictions, labels)
+
+            # Add the number of datapoints in the batch
+            return {**metrics, "n_datapoints": labels.size(0)}
