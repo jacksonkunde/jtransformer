@@ -345,8 +345,8 @@ class NextTokenPredictionTrainer(Jtrainer):
     def val_metrics(self, logits: th.Tensor, labels: th.Tensor) -> Dict[str, float]:
         """Computes multiple metrics for a given batch."""
         assert self.criterion is not None
-        predictions = logits.argmax(dim=-1, keepdim=True)
         loss = self.criterion(logits.view(-1, logits.size(-1)), labels.view(-1)).item()
+        predictions = logits.argmax(dim=-1)
         accuracy = (predictions == labels).float().mean().item()
 
         return {"val_loss": loss, "val_accuracy": accuracy}
