@@ -22,7 +22,7 @@ class Jtrainer(ABC):
         model: nn.Module,
         tokenizer: Union[PreTrainedTokenizer, CharTokenizer],
     ) -> None:
-        self.model = model.to(device)
+        self.model = model
         self.tokenizer = tokenizer
         self.cfg = cfg
         self.device = cfg.device
