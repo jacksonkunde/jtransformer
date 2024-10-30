@@ -1,4 +1,4 @@
-from jtransformer.trainer import Jtrainer
+from jtransformer.trainer import NextTokenPredictionTrainer
 from jtransformer.config import TrainingConfig, TransformerConfig
 from jtransformer.modules import Jtransformer
 from transformers import AutoTokenizer
@@ -17,7 +17,7 @@ def main():
         "padding": True,
         "truncation": True,
     }
-    dataset = Jtrainer.create_dataset(
+    dataset = NextTokenPredictionTrainer.create_dataset(
         tokenizer=tokenizer,
         file_path=file_path,
         tokenizer_kwargs=tokenizer_kwargs,
@@ -54,7 +54,9 @@ def main():
 
     model = Jtransformer(model_cfg)
 
-    trainer = Jtrainer(cfg=training_cfg, model=model, tokenizer=tokenizer)
+    trainer = NextTokenPredictionTrainer(
+        cfg=training_cfg, model=model, tokenizer=tokenizer
+    )
 
     trainer.train()
 

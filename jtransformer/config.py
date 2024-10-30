@@ -1,5 +1,5 @@
 # config.py
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 
 import torch as th
 
@@ -15,6 +15,9 @@ class TransformerConfig:
     d_mlp: int = 3072
     n_heads: int = 12
     n_layers: int = 12
+
+    def to_dict(self) -> dict:
+        return asdict(self)
 
 
 @dataclass
@@ -33,3 +36,6 @@ class TrainingConfig:
     train_data_path: str = ""
     val_data_path: str = ""
     n_workers: int = 1
+
+    def to_dict(self) -> dict:
+        return asdict(self)

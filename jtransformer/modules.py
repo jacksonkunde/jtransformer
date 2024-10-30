@@ -247,20 +247,24 @@ class Jtransformer(nn.Module):
             logits = logits[:, -1, :] / temperature
 
             # Mask logits for finished sequences
-            logits = logits.masked_fill(is_finished.unsqueeze(-1), float("-inf"))
+            logits = logits.masked_fill(is_finished, float("-inf"))
 
             # apply top-k filtering if set
             if top_k is not None:
                 top_k_values, _ = th.topk(logits, top_k, dim=-1)
-                min_top_k = top_k_values[:, -1].unsqueeze(-1)
+                print(f"topk val{top_k_values.shape}")
+                min_top_k = top_k_values[:, -1]
+                print(f" min top k{min_top_k.shape}")
                 logits = th.where(
                     logits < min_top_k, th.full_like(logits, float("-inf")), logits
                 )
+                print(logits.shape)
 
             # Sample or use argmax based on the `sample` flag
             if do_sample:
+                print(logits.shape)
                 probabilities = softmax(logits, dim=-1)
-                print(probabilities)
+                print(probabilities.shape)
                 new_tokens = th.multinomial(probabilities, num_samples=1)
             else:
                 new_tokens = logits.argmax(dim=-1, keepdim=True)
