@@ -1,8 +1,8 @@
-from trainer import create_dataset, TransformerTrainer
-from config import TrainingConfig, TransformerConfig
-from modules import Transformer
+from jtransformer.trainer import Jtrainer
+from jtransformer.config import TrainingConfig, TransformerConfig
+from jtransformer.modules import Jtransformer
 from transformers import AutoTokenizer
-from char_tokenizer import CharTokenizer
+from jtransformer.char_tokenizer import CharTokenizer
 import os
 
 
@@ -12,13 +12,15 @@ def main():
     tokenizer = CharTokenizer()
 
     tokenizer_kwargs = {"max_length": 64, "padding": True, "truncation": True}
-    dataset = create_dataset(
+    dataset = Jtrainer.create_dataset(
         tokenizer=tokenizer,
         file_path=file_path,
         tokenizer_kwargs=tokenizer_kwargs,
-        chunk_size=64,
-        overlap_size=16,
+        chunk_size=256,
+        overlap_size=64,
     )
+
+    tokenizer.save("char_tokenizer.json")
 
     train_dataset = dataset[: int(len(dataset) * 0.9)]
     val_dataset = dataset[int(len(dataset) * 0.9) :]
@@ -31,23 +33,23 @@ def main():
     training_cfg = TrainingConfig(
         debug=False,
         batch_size=32,
-        n_epochs=1,
+        n_epochs=8,
         train_data_path=os.path.abspath("./train_dataset"),
         val_data_path=os.path.abspath("./val_dataset"),
     )
 
     model_cfg = TransformerConfig(
-        d_model=256,
-        debug=True,
-        n_ctx=64,
-        d_mlp=256,
-        n_heads=4,
+        d_model=384,
+        n_ctx=256,
+        d_mlp=4 * 384,
+        n_heads=6,
+        n_layers=6,
         d_vocab=len(tokenizer.vocab),
     )
 
-    model = Transformer(model_cfg)
+    model = Jtransformer(model_cfg)
 
-    trainer = TransformerTrainer(cfg=training_cfg, model=model, tokenizer=tokenizer)
+    trainer = Jtrainer(cfg=training_cfg, model=model, tokenizer=tokenizer)
 
     trainer.train()
 

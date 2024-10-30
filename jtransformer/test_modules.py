@@ -9,7 +9,7 @@ from modules import (
     MLP,
     Unembed,
     TransformerBlock,
-    Transformer,
+    Jtransformer,
 )
 from utils import load_gpt2_weights_into_transformer
 from config import TransformerConfig
@@ -82,7 +82,7 @@ def test_transformer_block(config):
 
 
 def test_transformer(config):
-    transformer = Transformer(config)
+    transformer = Jtransformer(config)
     # load_gpt2_weights_into_transformer(transformer)  # Load weights
 
     tokens = th.randint(0, config.d_vocab, (2, 10))  # Batch size 2, sequence length 10

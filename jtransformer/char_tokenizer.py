@@ -1,9 +1,16 @@
+import json
+from typing import List
+
+import torch as th
+
+
 # TODO: Inherit from PreTrainedTokenizer
 class CharTokenizer:
-    def __init__(self, vocab=None, pad_token_id=0):
+    def __init__(self, vocab=None, pad_token_id=0, eos_token_id=1):
         # Initialize the vocabulary with the pad token
         self.pad_token_id = pad_token_id
-        self.vocab = vocab or {"<pad>": pad_token_id}
+        self.eos_token_id = eos_token_id
+        self.vocab = vocab or {"<pad>": pad_token_id, "<eos>": eos_token_id}
         self.inverse_vocab = {v: k for k, v in self.vocab.items()}
         self.next_id = max(self.vocab.values()) + 1  # Start from the next available ID
 
@@ -60,8 +67,25 @@ class CharTokenizer:
             return input_ids[:max_length]  # Truncate if longer
         return input_ids
 
-    def decode(self, input_ids):
+    def decode(self, input_ids: th.Tensor | List[int]):
         """Convert input IDs back to the original string."""
+        if isinstance(input_ids, th.Tensor):
+            input_ids = input_ids.squeeze()
+            input_ids = input_ids.tolist()
         return "".join(
             [self.inverse_vocab[id] for id in input_ids if id != self.pad_token_id]
         )
+
+    def save(self, save_path: str):
+        """Save the tokenizer's vocabulary to a JSON file."""
+        with open(save_path, "w", encoding="utf-8") as f:
+            json.dump(
+                {"vocab": self.vocab, "pad_token_id": self.pad_token_id}, f, indent=4
+            )
+
+    @classmethod
+    def load(cls, load_path: str):
+        """Load the tokenizer's vocabulary from a JSON file."""
+        with open(load_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return cls(vocab=data["vocab"], pad_token_id=data["pad_token_id"])

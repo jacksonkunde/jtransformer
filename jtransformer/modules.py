@@ -1,7 +1,9 @@
 # modules.py
 from config import TransformerConfig
 
-import math
+import os
+import json
+from typing import List
 
 import torch.nn as nn
 import torch as th
@@ -191,7 +193,7 @@ class TransformerBlock(nn.Module):
         return out
 
 
-class Transformer(nn.Module):
+class Jtransformer(nn.Module):
     def __init__(self, cfg: TransformerConfig) -> None:
         super().__init__()
         self.cfg = cfg
@@ -212,7 +214,7 @@ class Transformer(nn.Module):
 
     def generate(
         self,
-        input_ids,
+        input_ids: th.Tensor | List[int],
         eos_token_id=int,
         max_length: int = 100,
         max_new_tokens: int | None = None,
@@ -221,6 +223,12 @@ class Transformer(nn.Module):
         top_p: float = 1.0,
         top_k: int | None = None,
     ):
+        if isinstance(input_ids, List):
+            input_ids = th.tensor(input_ids)
+
+        if len(input_ids.shape) == 1:
+            input_ids = input_ids.unsqueeze(0)
+
         n_input_tokens = input_ids.size(-1)
         if max_new_tokens is None:
             max_new_tokens = max_length - n_input_tokens
@@ -230,14 +238,15 @@ class Transformer(nn.Module):
 
         for i in range(max_new_tokens):
             logits = self.forward(input_ids=input_ids)
-            new_tokens = logits[:, -1, :].argmax(-1)
+            new_tokens = logits[:, -1, :].argmax(-1, keepdim=True)
+            print(new_tokens)
+            print(input_ids)
             input_ids = th.cat((input_ids, new_tokens), dim=-1)
 
             # Update the input_ids only for unfinished sequences
             new_tokens = new_tokens.masked_fill(
                 is_finished, eos_token_id
             )  # Prevent further updates
-            input_ids = th.cat((input_ids, new_tokens.unsqueeze(-1)), dim=-1)
 
             # Check if any new EOS tokens were generated and update the mask
             is_finished = is_finished | (new_tokens == eos_token_id)
@@ -247,3 +256,43 @@ class Transformer(nn.Module):
                 break
 
         return input_ids
+
+    def save(self, save_dir: str) -> None:
+        """
+        Save the model's state_dict and configuration to the given directory.
+        """
+        os.makedirs(save_dir, exist_ok=True)
+
+        # Save the model's state dict
+        model_path = os.path.join(save_dir, "model.pth")
+        th.save(self.state_dict(), model_path)
+
+        # Save the configuration as JSON
+        config_path = os.path.join(save_dir, "config.json")
+        with open(config_path, "w", encoding="utf-8") as f:
+            json.dump(self.cfg.__dict__, f, indent=4)
+
+        print(f"Model and config saved to {save_dir}")
+
+    @classmethod
+    def load(cls, load_dir: str) -> "Jtransformer":
+        """
+        Load the model's state_dict and configuration from the given directory.
+        """
+        # Load the configuration from JSON
+        config_path = os.path.join(load_dir, "config.json")
+        with open(config_path, "r", encoding="utf-8") as f:
+            cfg_dict = json.load(f)
+
+        # Recreate the config object
+        cfg = TransformerConfig(**cfg_dict)
+
+        # Initialize the model with the loaded config
+        model = cls(cfg)
+
+        # Load the state dict
+        model_path = os.path.join(load_dir, "model.pth")
+        model.load_state_dict(th.load(model_path, map_location="cpu"))
+
+        print(f"Model loaded from {load_dir}")
+        return model

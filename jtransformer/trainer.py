@@ -1,5 +1,5 @@
-from config import TrainingConfig
-from modules import Transformer
+from jtransformer.config import TrainingConfig
+from jtransformer.modules import Jtransformer
 
 from typing import Dict
 import os
@@ -21,100 +21,9 @@ from datasets import Dataset, load_dataset, load_from_disk
 from transformers import PreTrainedTokenizer
 
 
-def create_dataset(
-    tokenizer: PreTrainedTokenizer,
-    file_path: str | None = None,
-    hf_dataset_name: str | None = None,
-    tokenizer_kwargs: dict = {},
-    chunk_size: int | None = None,
-    overlap_size: int = 0,
-) -> Dataset:
-    """
-    Converts a plain text file into a tokenized dataset for next-token prediction.
-    """
-
-    def read_txt_to_dict_chunks(
-        file_path: str,
-        tokenizer: PreTrainedTokenizer,
-        chunk_size: int,
-        overlap_size: int,
-        tokenizer_kwargs: dict = {},
-    ) -> list[dict]:
-        """
-        Streams a large text file in chunks with overlap to avoid loss of context.
-        Each chunk contains `chunk_size` tokens, with `overlap_size` tokens overlapping between chunks.
-        """
-        chunks = []
-        current_chunk = []
-
-        # Open the file and read it line by line
-        with open(file_path, "r", encoding="utf-8") as f:
-            for line in f:
-                # Ignore empty lines
-                line = line.strip()
-                if not line:
-                    continue
-
-                # Tokenize the line and append to the current chunk
-                tokens = tokenizer(line, padding=False, truncation=False)["input_ids"]
-                current_chunk.extend(tokens)
-
-                # If the current chunk exceeds the desired chunk size, save it
-                while len(current_chunk) >= chunk_size:
-                    chunks.append({"input_ids": current_chunk[:chunk_size]})
-
-                    # Create the next chunk starting with the overlapping part
-                    current_chunk = current_chunk[chunk_size - overlap_size :]
-
-        # Add the last chunk if any tokens remain
-        if current_chunk:
-            if len(current_chunk) < chunk_size:
-                current_chunk.extend(
-                    [tokenizer.pad_token_id] * (chunk_size - len(current_chunk))
-                )
-            chunks.append({"input_ids": current_chunk})
-
-        return chunks
-
-    def read_txt_to_dict_lines(file_path: str):
-        """Reads a plain text file and returns a list of dictionaries containing plain text."""
-        with open(file_path, "r", encoding="utf-8") as f:
-            lines = f.readlines()
-        return [{"text": line.strip()} for line in lines if line.strip()]
-
-    def tokenize_function(examples):
-        """Tokenizes the input text using the provided tokenizer."""
-        return tokenizer(examples["text"], **tokenizer_kwargs)
-
-    if hf_dataset_name:
-        dataset = load_dataset(hf_dataset_name)
-    elif file_path:
-        # Read text and convert to dataset
-        if chunk_size:
-            data_dict = read_txt_to_dict_chunks(
-                file_path=file_path,
-                tokenizer=tokenizer,
-                chunk_size=chunk_size,
-                overlap_size=overlap_size,
-                tokenizer_kwargs=tokenizer_kwargs,
-            )
-            tokenized_dataset = Dataset.from_list(data_dict)
-        else:
-            data_dict = read_txt_to_dict_lines(file_path)
-            tokenized_dataset = Dataset.from_list(data_dict).map(
-                tokenize_function, batched=True
-            )
-    else:
-        raise Exception
-
-    tokenized_dataset.set_format(type="torch", columns=["input_ids"])
-
-    return tokenized_dataset
-
-
-class TransformerTrainer:
+class Jtrainer:
     def __init__(
-        self, cfg: TrainingConfig, model: Transformer, tokenizer: PreTrainedTokenizer
+        self, cfg: TrainingConfig, model: Jtransformer, tokenizer: PreTrainedTokenizer
     ) -> None:
         self.cfg = cfg
         if not os.path.exists(cfg.save_path):
@@ -198,7 +107,8 @@ class TransformerTrainer:
                     break
 
             if epoch > 0 and epoch % self.cfg.save_freq == 0:
-                self._save_model(f"epoch_{epoch + 1}")
+                save_dir = os.path.join(self.cfg.save_path, f"epoch_{epoch + 1}")
+                self.model.save(save_dir)
 
             correct_predictions = th.concat(
                 [self.val_step(batch) for batch in self.val_dataloader]
@@ -208,7 +118,8 @@ class TransformerTrainer:
                 wandb.log({"accuracy": accuracy}, step=self.n_steps)
 
         print(f"Final Validation Accuracy: {accuracy}")
-        self._save_model("final")
+        save_dir = os.path.join(self.cfg.save_path, "final")
+        self.model.save(save_dir)
 
     def _load_train_loader(self) -> None:
         if self.train_dataloader is None:
@@ -218,7 +129,7 @@ class TransformerTrainer:
                 train_dataset,
                 batch_size=self.cfg.batch_size,
                 shuffle=True,
-                num_workers=4,
+                num_workers=1,
                 pin_memory=True,
             )
 
@@ -229,12 +140,102 @@ class TransformerTrainer:
             self.val_dataloader = DataLoader(
                 val_dataset,
                 batch_size=self.cfg.batch_size,
-                shuffle=True,
-                num_workers=4,
+                shuffle=False,
+                num_workers=1,
                 pin_memory=True,
             )
 
-    def _save_model(self, path) -> None:
-        save_path = os.path.join(self.cfg.save_path, f"{path}.pth")
-        with open(save_path, "wb") as f:
-            th.save(self.model, f)
+    @classmethod
+    def create_dataset(
+        tokenizer: PreTrainedTokenizer,
+        file_path: str | None = None,
+        hf_dataset_name: str | None = None,
+        tokenizer_kwargs: dict = {},
+        chunk_size: int | None = None,
+        overlap_size: int = 0,
+    ) -> Dataset:
+        """
+        Converts a plain text file into a tokenized dataset for next-token prediction.
+        """
+
+        def read_txt_to_dict_chunks(
+            file_path: str,
+            tokenizer: PreTrainedTokenizer,
+            chunk_size: int,
+            overlap_size: int,
+            tokenizer_kwargs: dict = {},
+        ) -> list[dict]:
+            """
+            Streams a large text file in chunks with overlap to avoid loss of context.
+            Each chunk contains `chunk_size` tokens, with `overlap_size` tokens overlapping between chunks.
+            """
+            chunks = []
+            current_chunk = []
+
+            # Open the file and read it line by line
+            with open(file_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    # Ignore empty lines
+                    line = line.strip()
+                    if not line:
+                        continue
+
+                    # Tokenize the line and append to the current chunk
+                    tokens = tokenizer(line + "\n", padding=False, truncation=False)[
+                        "input_ids"
+                    ]
+                    current_chunk.extend(tokens)
+
+                    # If the current chunk exceeds the desired chunk size, save it
+                    while len(current_chunk) >= chunk_size:
+                        chunks.append({"input_ids": current_chunk[:chunk_size]})
+
+                        # Create the next chunk starting with the overlapping part
+                        current_chunk = current_chunk[chunk_size - overlap_size :]
+
+            # Add the last chunk if any tokens remain
+            if current_chunk:
+                if len(current_chunk) < chunk_size:
+                    current_chunk.extend(
+                        [tokenizer.pad_token_id] * (chunk_size - len(current_chunk))
+                    )
+                chunks.append({"input_ids": current_chunk})
+
+            return chunks
+
+        def read_txt_to_dict_lines(file_path: str):
+            """Reads a plain text file and returns a list of dictionaries containing plain text."""
+            with open(file_path, "r", encoding="utf-8") as f:
+                lines = f.readlines()
+            return [{"text": line.strip() + "\n"} for line in lines if line.strip()]
+
+        def tokenize_function(examples):
+            """Tokenizes the input text using the provided tokenizer."""
+            return tokenizer(examples["text"], **tokenizer_kwargs)
+
+        if hf_dataset_name:
+            tokenized_dataset = load_dataset(hf_dataset_name).map(
+                tokenize_function, batched=True
+            )
+        elif file_path:
+            # Read text and convert to dataset
+            if chunk_size:
+                data_dict = read_txt_to_dict_chunks(
+                    file_path=file_path,
+                    tokenizer=tokenizer,
+                    chunk_size=chunk_size,
+                    overlap_size=overlap_size,
+                    tokenizer_kwargs=tokenizer_kwargs,
+                )
+                tokenized_dataset = Dataset.from_list(data_dict)
+            else:
+                data_dict = read_txt_to_dict_lines(file_path)
+                tokenized_dataset = Dataset.from_list(data_dict).map(
+                    tokenize_function, batched=True
+                )
+        else:
+            raise Exception
+
+        tokenized_dataset.set_format(type="torch", columns=["input_ids"])
+
+        return tokenized_dataset
