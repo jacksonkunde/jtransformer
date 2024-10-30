@@ -1,6 +1,6 @@
 # jtransformer
 
-**jtransformer** is a lightweight transformer library built from scratch in PyTorch, following the architecture of GPT-2. This project serves as both an educational tool for understanding the internals of transformer models and a starting point for experimentation transformers.
+**jtransformer** is a lightweight transformer library built from scratch in PyTorch, following the architecture of GPT-2. This project serves as both an educational tool for understanding the internals of transformer models and a starting point for experimentation with transformers.
 
 ---
 
