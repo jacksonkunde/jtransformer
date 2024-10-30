@@ -171,7 +171,8 @@ class Jtrainer(ABC):
                 progress_bar.set_description(f"Epoch {epoch+1}, Loss: {loss:.4f}")
 
             if epoch % self.cfg.save_freq == 0:
-                self.save_model(f"epoch_{epoch+1}")
+                save_path = os.path.join(self.cfg.save_path, f"epoch_{epoch+1}")
+                self.model.save(save_path)
 
             val_metrics_list = [self.val_step(b) for b in self.val_dataloader]
 
@@ -196,7 +197,8 @@ class Jtrainer(ABC):
             elif self.scheduler is not None:
                 self.scheduler.step()  # Step other schedulers normally
 
-        self.save_model("final")
+        save_path = os.path.join(self.cfg.save_path, "final")
+        self.model.save(save_path)
 
     def _early_stopping(self, val_loss: float) -> bool:
         """Checks if early stopping should be triggered."""
