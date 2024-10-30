@@ -1,5 +1,5 @@
 # modules.py
-from config import TransformerConfig
+from jtransformer.config import TransformerConfig
 
 import os
 import json

@@ -7,17 +7,22 @@ import os
 
 
 def main():
-    file_path = "/Users/newemployee/Desktop/transformer/cookbook/shakespeare/input.txt"
+    contex_window_size = 256
+    file_path = "path/to/input.txt"  # add your filepath here
 
     tokenizer = CharTokenizer()
 
-    tokenizer_kwargs = {"max_length": 64, "padding": True, "truncation": True}
+    tokenizer_kwargs = {
+        "max_length": contex_window_size,
+        "padding": True,
+        "truncation": True,
+    }
     dataset = Jtrainer.create_dataset(
         tokenizer=tokenizer,
         file_path=file_path,
         tokenizer_kwargs=tokenizer_kwargs,
-        chunk_size=256,
-        overlap_size=64,
+        chunk_size=contex_window_size,
+        overlap_size=contex_window_size // 4,
     )
 
     tokenizer.save("char_tokenizer.json")
@@ -40,7 +45,7 @@ def main():
 
     model_cfg = TransformerConfig(
         d_model=384,
-        n_ctx=256,
+        n_ctx=contex_window_size,
         d_mlp=4 * 384,
         n_heads=6,
         n_layers=6,
