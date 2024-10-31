@@ -71,9 +71,7 @@ class CharTokenizer:
 
     def _pad(self, input_ids, max_length) -> Tuple[List[int], List[int]]:
         input_ids = [self.pad_token_id] * (max_length - len(input_ids)) + input_ids
-        attention_mask = [self.pad_token_id] * (max_length - len(input_ids)) + (
-            input_ids != self.pad_token_id
-        )
+        attention_mask = [1] * len(input_ids) + [0] * (max_length - len(input_ids))
         return input_ids, attention_mask
 
     def _truncate(self, input_ids, max_length):

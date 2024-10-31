@@ -170,7 +170,9 @@ class Jtrainer(ABC):
                 loss = self.train_step(batch)
                 progress_bar.update(1)
                 progress_bar.set_description(f"Epoch {epoch+1}, Loss: {loss:.4f}")
+
                 steps += 1
+
                 if steps > self.cfg.max_steps_per_epoch:
                     break
 
