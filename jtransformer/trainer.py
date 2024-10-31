@@ -198,6 +198,8 @@ class Jtrainer(ABC):
                 self.scheduler.step(val_loss)  # Pass val_loss to ReduceLROnPlateau
             elif self.scheduler is not None:
                 self.scheduler.step()  # Step other schedulers normally
+            if not self.cfg.debug:
+                wandb.log({"lr": self.scheduler.get_lr()})
 
         save_path = os.path.join(self.cfg.save_path, "final")
         self.model.save(save_path)
