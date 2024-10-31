@@ -3,7 +3,7 @@ from jtransformer.config import TransformerConfig
 
 import os
 import json
-from typing import List
+from typing import List, Optional
 
 import torch as th
 import torch.nn as nn
@@ -106,7 +106,11 @@ class Attention(nn.Module):
         )
         return attn_scores
 
-    def forward(self, res: Float[th.Tensor, "batch position d_model"]):
+    def forward(
+        self,
+        res: Float[th.Tensor, "batch position d_model"],
+        attention_mask: Optional[Float[th.Tensor, "batch position"]] = None,
+    ):
         batch, seq_len, d_model = res.shape
 
         qkv = self.W_attn(res)
@@ -137,6 +141,12 @@ class Attention(nn.Module):
             )
             / (self.d_head) ** 0.5
         )
+
+        # Apply attn mask
+        if attention_mask is not None:
+            attention_mask = attention_mask[:, None, None, :].float()
+            attn_scores = attn_scores.masked_fill(attention_mask == 0, self.MASK)
+
         attn_scores = self.causal_mask(attn_scores)
         attn_scores = attn_scores.softmax(dim=-1)
 
@@ -191,8 +201,8 @@ class TransformerBlock(nn.Module):
         self.attn = Attention(cfg)
         self.mlp = MLP(cfg)
 
-    def forward(self, res):
-        inter = self.attn(self.ln1(res)) + res
+    def forward(self, res: th.Tensor, attention_mask: Optional[th.Tensor] = None):
+        inter = self.attn(self.ln1(res), attention_mask=attention_mask) + res
         out = self.mlp(self.ln2(inter)) + inter
         return out
 
@@ -209,10 +219,14 @@ class Jtransformer(nn.Module):
         self.ln_last = LayerNorm(cfg)
         self.unembed = Unembed(cfg)
 
-    def forward(self, input_ids) -> th.Tensor:
+    def forward(
+        self,
+        input_ids: Int[th.Tensor, "batch seq"],
+        attention_mask: Optional[Float[th.Tensor, "batch seq"]] = None,
+    ) -> th.Tensor:
         res = self.embed(input_ids) + self.pos_embed(input_ids)
         for block in self.transformer_blocks:
-            res = block(res)
+            res = block(res, attention_mask=attention_mask)
         logits = self.unembed(self.ln_last(res))
         return logits
 

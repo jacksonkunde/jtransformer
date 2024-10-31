@@ -1,6 +1,6 @@
 import torch as th
 import pytest
-from modules import (
+from jtransformer.modules import (
     LayerNorm,
     Embed,
     GPT2PositionalEmbed,
@@ -11,8 +11,7 @@ from modules import (
     TransformerBlock,
     Jtransformer,
 )
-from utils import load_gpt2_weights_into_transformer
-from config import TransformerConfig
+from jtransformer.config import TransformerConfig
 
 
 @pytest.fixture
@@ -83,7 +82,6 @@ def test_transformer_block(config):
 
 def test_transformer(config):
     transformer = Jtransformer(config)
-    # load_gpt2_weights_into_transformer(transformer)  # Load weights
 
     tokens = th.randint(0, config.d_vocab, (2, 10))  # Batch size 2, sequence length 10
     logits = transformer(tokens)
