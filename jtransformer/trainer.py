@@ -165,8 +165,8 @@ class Jtrainer(ABC):
         progress_bar = tqdm(total=self.cfg.n_epochs * self.cfg.max_steps_per_epoch)
 
         for epoch in range(self.cfg.n_epochs):
+            steps = 0
             for batch in self.train_dataloader:
-                steps = 0
                 loss = self.train_step(batch)
                 progress_bar.update(1)
                 progress_bar.set_description(f"Epoch {epoch+1}, Loss: {loss:.4f}")
