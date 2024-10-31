@@ -182,22 +182,18 @@ class Jtrainer(ABC):
 
             val_metrics_list = [self.val_step(b) for b in self.val_dataloader]
 
-            # Aggregate metrics using a weighted average
             aggregated_metrics = self.aggregate_metrics(val_metrics_list)
 
-            # Log the aggregated metrics to Wandb
-            wandb.log(aggregated_metrics, step=self.n_steps)
+            if not self.cfg.debug:
+                wandb.log(aggregated_metrics, step=self.n_steps)
 
-            # Optionally update the progress bar with validation metrics
             progress_bar.set_postfix(aggregated_metrics)
 
-            # Early stopping logic based on val_loss (if available)
             val_loss = aggregated_metrics.get("val_loss")
             if val_loss is not None and self._early_stopping(val_loss):
                 print("Early stopping triggered.")
                 break
 
-            # Update the scheduler with the validation loss (if required)
             if isinstance(self.scheduler, optim.lr_scheduler.ReduceLROnPlateau):
                 self.scheduler.step(val_loss)  # Pass val_loss to ReduceLROnPlateau
             elif self.scheduler is not None:
