@@ -1,5 +1,5 @@
 import json
-from typing import List
+from typing import List, Tuple
 
 import torch as th
 
@@ -26,18 +26,25 @@ class CharTokenizer:
     def __call__(
         self, text, max_length=None, padding=False, truncation=False, **kwargs
     ):
-        """Tokenize the text at the character level and return input IDs."""
+        """
+        Tokenize the text at the character level and return input IDs.
+        Our attention mask is None if there is no masking.
+        """
         batch_input_ids = []
+        batch_attention_mask = []
 
         if isinstance(text, list):
             for t in text:
-                input_ids = self._tokenize(t, max_length, truncation, padding)
+                input_ids, attention_mask = self._tokenize(
+                    t, max_length, truncation, padding
+                )
                 batch_input_ids.append(input_ids)
+                batch_attention_mask.append(attention_mask)
 
         else:
-            batch_input_ids = self._tokenize(text, max_length)
+            batch_input_ids, attention_mask = self._tokenize(text, max_length)
 
-        return {"input_ids": batch_input_ids}
+        return {"input_ids": batch_input_ids, "attention_mask": attention_mask}
 
     def _tokenize(
         self,
@@ -47,20 +54,27 @@ class CharTokenizer:
         padding: bool = False,
     ):
         input_ids = [self._get_token_id(char) for char in text]
+        attention_mask = None
         if truncation:
             assert (
                 max_length is not None
             ), "You must pass a maximum length for both truncation and padding"
             input_ids = self._truncate(input_ids, max_length)
+
         if padding:
             assert (
                 max_length is not None
             ), "You must pass a maximum length for both truncation and padding"
-            input_ids = self._pad(input_ids, max_length)
-        return input_ids
+            input_ids, attention_mask = self._pad(input_ids, max_length)
 
-    def _pad(self, input_ids, max_length):
-        return [self.pad_token_id] * (max_length - len(input_ids)) + input_ids
+        return input_ids, attention_mask
+
+    def _pad(self, input_ids, max_length) -> Tuple[List[int], List[int]]:
+        input_ids = [self.pad_token_id] * (max_length - len(input_ids)) + input_ids
+        attention_mask = [self.pad_token_id] * (max_length - len(input_ids)) + (
+            input_ids != self.pad_token_id
+        )
+        return input_ids, attention_mask
 
     def _truncate(self, input_ids, max_length):
         if len(input_ids) > max_length:
