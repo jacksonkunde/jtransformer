@@ -93,7 +93,7 @@ class Jtrainer(ABC):
         """Shared logic for a single training step."""
         self.model.train()
         input_ids = batch["input_ids"].to(self.device)
-        labels = batch["label"].to(self.device)
+        labels = batch["label"].float().to(self.device)  # Cast to float
 
         predictions = self.model(input_ids).squeeze(-1)
         loss = self.criterion(predictions, labels)
@@ -113,7 +113,7 @@ class Jtrainer(ABC):
         ), "Criterion must be initalized before validation steps."
         self.model.eval()
         input_ids = batch["input_ids"].to(self.device)
-        labels = batch["label"].to(self.device)
+        labels = batch["label"].float().to(self.device)
 
         with th.no_grad():
             logits = self.model(input_ids)
