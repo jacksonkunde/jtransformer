@@ -40,7 +40,7 @@ wget -P cookbook/shakespeare/ https://raw.githubusercontent.com/karpathy/char-rn
 
 #### You can use the `Jtrainer` class to start training. 
 - Use the example in [cookbook/shakespeare/train_shakespeare.py](cookbook/shakespeare/train_shakespeare.py)
-- Or un this notebook on **Google Colab** [HERE :smile:](https://colab.research.google.com/drive/19QjORQJRrurgmpe9jdNTZWmZW1VuyGy3?usp=sharing)
+- Or run this notebook on **Google Colab** [HERE :smile:](https://colab.research.google.com/drive/19QjORQJRrurgmpe9jdNTZWmZW1VuyGy3?usp=sharing)
 
 ### Run Tests
 We provide `pytest` tests for core components inside `test_modules.py`. Run the following command to execute tests:
